@@ -11,8 +11,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from collections import defaultdict, Counter
 from dotenv import dotenv_values
 import boto3
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime, timedelta
+from fastapi import APIRouter, Body
+from typing import List
+
+router = APIRouter()
+
+
+popup_state = {
+    "show_popup": False,
+    "support_message": None,
+    "last_checked": None
+}
 
 dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
+scheduler =BackgroundScheduler()
+print("📅 Starting APScheduler...")  # <-- Add this
 
 # Step 1: Load env values from file
 env_vars = dotenv_values(r"C:\Users\ASUS\Desktop\MoodMate\Moodmate\backend\.env")
@@ -44,6 +59,7 @@ guardian_model = ModelInference(
 )
 
 app = FastAPI()
+app.include_router(router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Set to your frontend URL in production
@@ -51,6 +67,61 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def send_supportive_message(tweet_text):
+    support_prompt = f"""
+    <supportive_response>
+    <situation>{tweet_text}</situation>
+
+    Craft a warm, emotionally supportive message for someone who might be struggling. Keep it gentle, non-judgmental, and caring. End with an invitation to talk if they'd like.
+
+    Format:
+    <response>[Your empathetic message]</response>
+    </supportive_response>
+    """
+
+    response = guardian_model.generate(support_prompt)
+    full_text = response['results'][0]['generated_text']
+    support_msg = re.search(r"<response>(.*?)</response>", full_text, re.DOTALL)
+
+    return support_msg.group(1).strip() if support_msg else "Just wanted to say I'm here if you need someone to talk to."
+
+
+def scheduled_check(username):
+    print(f"⏰ scheduled_check triggered at {datetime.utcnow()} for user: {username}")
+    try:
+        user_id = get_user_id(username)
+        tweets = get_user_tweets(user_id, max_results=10)
+
+        now = datetime.utcnow()
+        cutoff = now - timedelta(hours=24)
+
+        for tweet in tweets:
+            created_at_str = tweet.get("created_at")
+            if not created_at_str:
+                continue
+
+            created_at = datetime.strptime(created_at_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+            if created_at < cutoff:
+                continue
+
+            result = analyze_tweet(tweet['id'], tweet['text'], created_at_str)
+
+            if result['probability_of_risk'] > 0.85:
+                popup_state["show_popup"] = True
+                popup_state["support_message"] = send_supportive_message(result["text"])
+                popup_state["last_checked"] = now
+                return  # We found one, no need to check more
+
+        # If loop ends without finding one
+        popup_state["show_popup"] = False
+        popup_state["support_message"] = None
+        popup_state["last_checked"] = now
+
+    except Exception as e:
+        print("Scheduler error:", str(e))
+        popup_state["show_popup"] = False
+
 
 def get_user_id(username):
     url = f"https://api.twitter.com/2/users/by/username/{username}"
@@ -62,7 +133,7 @@ def get_user_id(username):
     else:
         raise Exception(f"User not found or API error: {resp_json}")
 
-def store_analysis(tweet_id, text, harm, confidence, comment):
+def store_analysis(tweet_id, text, created_at, harm, confidence, comment):
     table = dynamodb.Table('TweetRiskAnalysis')
 
     existing_item = table.get_item(Key={'tweet_id': tweet_id})
@@ -73,6 +144,7 @@ def store_analysis(tweet_id, text, harm, confidence, comment):
     response = table.put_item(Item={
         'tweet_id': tweet_id,
         'text': text,
+        'created_at': created_at,
         'risk_detected': harm,
         'confidence_score': confidence,
         'explanation': comment
@@ -95,7 +167,30 @@ def get_user_tweets(user_id, max_results=5):
     else:
         return []
 
-def analyze_tweet(tweet_id, text):
+def analyze_tweet(tweet_id, text, created_at: str):
+    try:
+            # 🗃️ Step 1: Check if analysis already exists in DB
+            table = dynamodb.Table('TweetRiskAnalysis')
+            existing_item = table.get_item(Key={'tweet_id': tweet_id})
+            if 'Item' in existing_item:
+                print(f"🔁 Found existing analysis for tweet {tweet_id}")
+                return {
+                    "text": existing_item['Item']['text'],
+                    "risk_detected": existing_item['Item']['risk_detected'],
+                    "created_at": existing_item['Item']['created_at'],
+                    "confidence": existing_item['Item']['confidence_score'],
+                    "probability_of_risk": float(existing_item['Item']['confidence_score']),
+                    "explanation": existing_item['Item']['explanation'],
+                }
+    except Exception as e:
+        print("🛑 Analyze error:", str(e))
+        return {
+            "text": text,
+            "risk_detected": "Unknown",
+            "confidence": "Unknown",
+            "probability_of_risk": 0.0,
+        }
+
     try:
         prompt = f"""
             <risk_evaluation>
@@ -129,7 +224,7 @@ def analyze_tweet(tweet_id, text):
         except ValueError:
             probability_of_risk = 0.0
         tweet_id = str(tweet_id) if tweet_id else "unknown_id"
-        store_analysis(tweet_id, text, label, confidence_str, explanation)
+        store_analysis(tweet_id, text, created_at, label, confidence_str, explanation)
 
         return {
             "text": text,
@@ -146,6 +241,25 @@ def analyze_tweet(tweet_id, text):
             "confidence": "Unknown",
             "probability_of_risk": 0.0,
         }
+scheduled_check("GauthamSalian31")
+scheduler.add_job(
+    scheduled_check,
+    'interval',
+    minutes = 17,
+    args=["GauthamSalian31"],
+    id='risk_check_job',
+    replace_existing=True
+)       
+scheduler.start()
+print("✅ Job added to scheduler")
+print("📅 Scheduler jobs:")
+for job in scheduler.get_jobs():
+    print(f"🕒 Job '{job.id}' next run: {job.next_run_time}")
+
+
+@app.get("/api/trigger_check")
+def trigger_check():
+    return popup_state
 
 @app.get("/analyze_tweets/{username}")
 def analyze_tweets(username: str, max_results: int = 5):
@@ -155,7 +269,7 @@ def analyze_tweets(username: str, max_results: int = 5):
         tweet_data = [{"id": tweet["id"], "date": tweet["created_at"], "text": tweet["text"]} for tweet in tweets]
         results = []
         for tweet in tweet_data:
-            result = analyze_tweet(tweet["id"], tweet["text"])
+            result = analyze_tweet(tweet["id"], tweet["text"], tweet["date"])
             results.append({
                 "date": tweet["date"],
                 "text": tweet["text"],
@@ -178,7 +292,7 @@ def analyze_all(username: str, max_results: int = 5):
 
         results = []
         for tweet in tweet_data:
-            result = analyze_tweet(tweet["id"], tweet["text"])
+            result = analyze_tweet(tweet["id"], tweet["text"], tweet["date"])
             results.append({
                 "date": tweet["date"],
                 "text": tweet["text"],
@@ -191,3 +305,39 @@ def analyze_all(username: str, max_results: int = 5):
         }
     except Exception as e:
         return {"error": str(e)}
+
+@app.get("/api/read_analysis")
+def read_analyzed_tweets():
+    try:
+        table = dynamodb.Table('TweetRiskAnalysis') 
+        response = table.scan()
+        print(f"🔎 Raw scan response: {response}")
+        items = response.get("Items", [])
+
+        results = []
+        for tweet in items:
+            result = {
+                "date": tweet.get("created_at", "Unknown"),
+                "text": tweet.get("text", ""),
+                "risk_detected": tweet.get("risk_detected", "Unknown"),
+                "confidence": tweet.get("confidence_score", "Unknown"),
+                "probability_of_risk": float(tweet.get("confidence_score", "0.0")),
+                "explanation": tweet.get("explanation", "Not provided"),
+                "tweet_id": tweet.get("tweet_id", "")
+            }
+            results.append(result)
+
+        return {
+            "risk_analysis": results
+        }
+
+    except Exception as e:
+        print("🛑 Error reading tweet analysis:", str(e))
+        return {
+            "risk_analysis": [],
+            "error": str(e)
+        }
+    
+@app.get("/ping")
+def ping():
+    return {"status": "OK", "time": datetime.utcnow()}

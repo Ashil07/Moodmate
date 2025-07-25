@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import botAvatar from "../assets/bot-avatar.png";
 import userAvatar from "../assets/user-avatar.png";
+import FaceDetector from "../components/FaceDetector";
 
 const API_URL = "http://localhost:8000/chat";
 
@@ -12,10 +13,9 @@ function ChatInterface() {
   const [isBotSpeaking, setIsBotSpeaking] = useState(false);
   const [availableVoices, setAvailableVoices] = useState([]);
   const [selectedVoice, setSelectedVoice] = useState(null);
+  const [showHelpPopup, setShowHelpPopup] = useState(false);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
-  const [showHelpPopup, setShowHelpPopup] = useState(false);
-  
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -40,33 +40,6 @@ function ChatInterface() {
       loadVoices();
     }
   }, [selectedVoice]);
-
-  const HelpPopup = () => {
-  const [showHelpPopup, setShowHelpPopup] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowHelpPopup(true);
-    }, 1000); // 1 second delay
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (!showHelpPopup) return null;
-      return (
-        <div className="fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50 animate-fade-in">
-          <p className="text-sm text-gray-700">
-            Need help? I'm here if you're feeling overwhelmed. 💬
-          </p>
-          <button
-            onClick={() => setShowHelpPopup(false)}
-            className="mt-2 text-xs text-blue-500 hover:underline"
-          >
-            Dismiss
-          </button>
-        </div>
-      );
-    };
 
   const speak = (text) => {
     if (!text || !selectedVoice) return;
@@ -109,7 +82,7 @@ function ChatInterface() {
         utterance.voice = selectedVoice;
         utterance.pitch = 1.1;
         utterance.rate = 0.95;
-        utterance.volume = 1.0; 
+        utterance.volume = 1.0;
         speechSynthesis.cancel();
         setIsBotSpeaking(true);
         utterance.onend = () => setIsBotSpeaking(false);
@@ -121,23 +94,23 @@ function ChatInterface() {
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
 
-// Try to parse JSON if it's a full object
-try {
-  const parsed = JSON.parse(chunk);
-  if (parsed.response) {
-    botText += parsed.response;
-  } else {
-    botText += chunk; // fallback
-  }
-} catch {
-  botText += chunk; // fallback for partial or non-JSON chunks
-}
+        try {
+          const parsed = JSON.parse(chunk);
+          if (parsed.response) {
+            botText += parsed.response;
+          } else {
+            botText += chunk;
+          }
+        } catch {
+          botText += chunk;
+        }
 
         setMessages((prev) => {
           const updated = [...prev];
           updated[updated.length - 1] = { sender: "bot", text: botText };
           return updated;
         });
+
         const sentenceEnd = botText.lastIndexOf(".");
         if (sentenceEnd > spokenSoFar.length + 5) {
           const toSpeak = botText.slice(spokenSoFar.length, sentenceEnd + 1);
@@ -148,6 +121,7 @@ try {
 
       const remaining = botText.slice(spokenSoFar.length).trim();
       if (remaining.length > 2) speakBuffered(remaining);
+
       const stressKeywords = [
         "i can't",
         "give up",
@@ -225,6 +199,17 @@ try {
 
   return (
     <div className="flex flex-col h-[85vh] bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 rounded-lg shadow p-4 max-w-2xl mx-auto transition-colors duration-300">
+      <div style={{ display: "none" }}>
+        <FaceDetector
+          onEmotionDetected={({ emotion, stress }) => {
+            console.log("🧠 Detected emotion:", emotion, "→ stress score:", stress);
+            if (stress > 0.2 && !showHelpPopup) {
+              setShowHelpPopup(true);
+            }
+          }}
+        />
+      </div>
+
       <div className="flex-1 overflow-y-auto px-2 pb-4">
         {messages.map((msg, idx) => (
           <div

@@ -20,6 +20,7 @@
     "face-api.js": "^0.22.2",
     "framer-motion": "^12.23.0",
     "html2canvas": "^1.4.1",
+    "lottie-react": "^2.4.1",
     "lucide-react": "^0.525.0",
     "pitchy": "^4.1.0",
     "react": "^19.1.0",
@@ -33,6 +34,7 @@
     "react-webcam": "^7.2.0",
     "recharts": "^3.1.0",
     "tsparticles": "^3.8.1",
+    "typewriter-effect": "^2.22.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

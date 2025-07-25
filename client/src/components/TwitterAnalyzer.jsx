@@ -15,6 +15,42 @@ const TwitterAnalyzer = () => {
   const twitterDates = twitterResults ? twitterResults.map(tweet => tweet.date) : [];
   const twitterProbabilities = twitterResults ? twitterResults.map(tweet => Number(tweet.probability_of_risk)) : [];
 
+  const handleViewStored = async () => {
+    setLoading(true);
+    setError("");
+    setTwitterResults(null);
+
+    try {
+      const res = await fetch("http://localhost:8000/api/read_analysis");
+      const data = await res.json();
+
+      if (data.risk_analysis && Array.isArray(data.risk_analysis)) {
+        const normalized = data.risk_analysis.map(item => ({
+          date: item.date,
+          text: item.text,
+          probability_of_risk: Number(item.probability_of_risk),
+          confidence: item.confidence,
+          risk_detected: item.risk_detected,
+          tweet_id: item.tweet_id,
+          explanation: item.explanation,
+        }));
+
+        setTwitterResults(normalized);
+        setWordCloudData(null);
+        setSelectedEmotion("");
+      } else {
+        setError(data.error || "No stored analysis found.");
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError("Failed to fetch stored results.");
+    }
+
+    setLoading(false);
+  };
+
+
+
   const twitterRiskChartData = {
     labels: twitterDates,
     datasets: [
@@ -94,6 +130,13 @@ const TwitterAnalyzer = () => {
       >
         {loading ? "Analyzing..." : "Analyze Tweets"}
       </button>
+      <button
+        onClick={handleViewStored}
+        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded ml-2 transition-colors duration-300"
+      >
+        View Stored Analysis
+      </button>
+
       {loading && <div className="text-blue-500 mt-2">Loading...</div>}
       {error && <div className="text-red-500 mt-2">{error}</div>}
 
