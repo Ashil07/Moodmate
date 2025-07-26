@@ -21,7 +21,7 @@ export default function HabitFlowDashboard() {
   // 🧠 Fetch habit streaks
   const fetchHabits = async () => {
     try {
-      const res = await fetch("http://localhost:8000/habitflow/get-progress?user_id=demo_user");
+      const res = await fetch("http://localhost:8007/habitflow/get-progress?user_id=demo_user");
       const data = await res.json();
       setHabits(data.habits || []);
     } catch (err) {
@@ -31,7 +31,7 @@ export default function HabitFlowDashboard() {
 
   // ➕ Increment streak
   const incrementStreak = async (habitId) => {
-    await fetch("http://localhost:8000/habitflow/increment-streak", {
+    await fetch("http://localhost:8007/habitflow/increment-streak", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: "demo_user", habit_id: habitId })
@@ -42,7 +42,7 @@ export default function HabitFlowDashboard() {
   // 💡 Suggest replacements
   const fetchSuggestions = async () => {
     try {
-      const { data } = await axios.post("http://localhost:8000/suggest_replacements", {
+      const { data } = await axios.post("http://localhost:8007/suggest_replacements", {
         bad_habit: badHabitInput,
       });
       setHabitSuggestions(data.suggestions || []);
@@ -54,7 +54,7 @@ export default function HabitFlowDashboard() {
   // ✅ Save progress for new habits
   const saveProgress = async () => {
     try {
-      await axios.post("http://localhost:8000/habitflow/save-progress", {
+      await axios.post("http://localhost:8007/habitflow/save-progress", {
         user_id: "demo_user",
         habit_id: uuidv4(),
         ...newHabit,
@@ -148,7 +148,7 @@ export default function HabitFlowDashboard() {
               <p><strong>Level:</strong> {selectedHabit.level}</p>
               <button
                 onClick={async () => {
-                  await axios.post("http://localhost:8000/habitflow/save-progress", {
+                  await axios.post("http://localhost:8007/habitflow/save-progress", {
                     user_id: "demo_user",
                     habit_id: selectedHabit.habit_id, // ✅ Add this field
                     habit_name: selectedHabit.bad_habit,

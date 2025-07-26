@@ -1,48 +1,45 @@
-import json, uuid, boto3, bcrypt
+import bcrypt
+import boto3
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr
+from botocore.exceptions import ClientError
+
+app = FastAPI()
+
+# ✅ Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust to your frontend domain in prod
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('UserAuth')
 
-def lambda_handler(event, context):
-    headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-    }
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
 
+@app.post("/login")
+def login(payload: LoginRequest):
     try:
-        body = json.loads(event["body"])
-        email = body["email"]
-        password = body["password"]
-
-        # 1. Query user by email
         response = table.scan(
-            FilterExpression=boto3.dynamodb.conditions.Attr("email").eq(email)
+            FilterExpression=boto3.dynamodb.conditions.Attr("email").eq(payload.email)
         )
         items = response.get("Items", [])
         if not items:
-            return {"statusCode": 404, "headers": headers, "body": json.dumps({"error": "User not found"})}
+            raise HTTPException(status_code=404, detail="User not found")
 
         user = items[0]
-        stored_hash = user["hashed_pw"]
-
-        # 2. Compare passwords
-        if bcrypt.checkpw(password.encode(), stored_hash.encode()):
-            return {
-                "statusCode": 200,
-                "headers": headers,
-                "body": json.dumps({"message": "Login successful", "username": user["username"]})
-            }
+        if bcrypt.checkpw(payload.password.encode(), user["hashed_pw"].encode()):
+            return {"message": "Login successful", "username": user["username"]}
         else:
-            return {"statusCode": 401, "headers": headers, "body": json.dumps({"error": "Invalid credentials"})}
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    except ClientError as e:
+        raise HTTPException(status_code=500, detail=f"DynamoDB error: {e.response['Error']['Message']}")
     except Exception as e:
-        return {"statusCode": 500, "headers": headers, "body": json.dumps({"error": str(e)})}
-
-if __name__ == "__main__":
-    test_event = {
-        "body": json.dumps({
-            "email": "test@example.com",
-            "password": "MySecurePass123!"
-        })
-    }
-    print(lambda_handler(test_event, None))
+        raise HTTPException(status_code=500, detail=str(e))
