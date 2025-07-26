@@ -38,7 +38,7 @@ function GoogleFitAuth({ onDataFetched }) {
     };
 
     try {
-      const res = await fetch("http://localhost:8000/save-health-data", {
+      const res = await fetch("http://localhost:8006/save-health-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

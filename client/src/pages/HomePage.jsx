@@ -91,7 +91,7 @@ const HomePage = () => {
 
         <Lottie animationData={relaxAnimation} className="w-52 h-52 mb-6" loop={true} />
 
-        <Link to="/dashboard">
+        <Link to="/login">
           <motion.button 
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-full shadow-lg transition-all duration-300"
             whileTap={{ scale: 0.95 }}
@@ -150,7 +150,7 @@ const HomePage = () => {
         viewport={{ once: true }}
       >
         <h4 className="text-xl font-semibold text-gray-800 mb-2">Start your wellness journey today 🌱</h4>
-        <Link to="/dashboard">
+        <Link to="/login">
           <motion.button 
             className="px-5 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition"
             whileTap={{ scale: 0.95 }}

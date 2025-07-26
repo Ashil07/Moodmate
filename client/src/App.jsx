@@ -13,10 +13,13 @@ import BreathingCatalog from './components/BreathingCatalog';
 import JournalDashboard from './components/JournalDashboard';
 import HabitFlow from './components/HabitFlow';
 import MotivationalPopup from "./components/MotivationalPopup";
+import SignupForm from './components/SignupForm.jsx';
+import LoginForm from './components/LoginForm';
 import './App.css';
 
 const AppLayout = () => {
   const location = useLocation();
+
   const [fusionInputs, setFusionInputs] = useState({
     face: null,
     voice: null,
@@ -30,14 +33,14 @@ const AppLayout = () => {
     document.documentElement.classList.add("dark");
   }, []);
 
-  const hideSidebarRoutes = ['/', '/login'];
+  const hideSidebarRoutes = ['/', '/login', '/signup'];
   const showSidebar = !hideSidebarRoutes.includes(location.pathname);
 
   // 🧠 Polling logic (force popup to remount every time)
   useEffect(() => {
     const fetchPopup = async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/trigger_check");
+        const res = await fetch("http://localhost:8002/api/trigger_check");
         if (!res.ok) throw new Error("Failed to fetch");
 
         const data = await res.json();
@@ -72,8 +75,12 @@ const AppLayout = () => {
       >
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/signup" element={<SignupForm />} /> {/* 🎉 Add this */}
+          <Route path="/login" element={<LoginForm />} />   {/* 🔐 Add this */}
           <Route path="/chat" element={<ChatInterface />} />
-          <Route path="/chatbot/*" element={<ChatbotPage fusionInputs={fusionInputs} setFusionInputs={setFusionInputs} />} />
+          <Route path="/chatbot/*" element={
+            <ChatbotPage fusionInputs={fusionInputs} setFusionInputs={setFusionInputs} />
+          } />
           <Route path="/dashboard" element={<StressDashboard fusionInputs={fusionInputs} />} />
           <Route path="/inputs" element={<InputMonitor setFusionInputs={setFusionInputs} />} />
           <Route path="/twitter" element={<TwitterAnalyzer />} />

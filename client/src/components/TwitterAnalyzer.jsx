@@ -21,7 +21,7 @@ const TwitterAnalyzer = () => {
     setTwitterResults(null);
 
     try {
-      const res = await fetch("http://localhost:8000/api/read_analysis");
+      const res = await fetch("http://localhost:8002/api/read_analysis");
       const data = await res.json();
 
       if (data.risk_analysis && Array.isArray(data.risk_analysis)) {
@@ -98,7 +98,7 @@ const TwitterAnalyzer = () => {
     setError("");
     setTwitterResults(null);
     try {
-      const res = await fetch(`http://localhost:8000/analyze_all/${twitterUsername}`);
+      const res = await fetch(`http://localhost:8002/analyze_all/${twitterUsername}`);
       const data = await res.json();
       if (data.risk_analysis) {
         setTwitterResults(data.risk_analysis);
