@@ -1,26 +1,51 @@
-// src/components/PsychologistCard.jsx
-import React from 'react';
+import React, { useState } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const PsychologistCard = ({ doctor, onBook }) => {
+  const [selectedDate, setSelectedDate] = useState(null);
+
   return (
-    <div className="border border-gray-200 dark:border-gray-700 p-6 rounded-xl shadow-lg flex flex-col items-center bg-gradient-to-br from-blue-50 to-white dark:from-gray-800 dark:to-gray-900 hover:shadow-2xl transition-shadow duration-200">
+    <div className="border rounded-lg shadow-lg p-3 bg-white transition-transform duration-200 hover:scale-[1.02] hover:shadow-xl max-w-sm mx-auto">
       <img
         src={doctor.image}
         alt={doctor.name}
-        className="w-28 h-28 rounded-full mb-4 object-cover border-4 border-blue-200 shadow"
+        className="w-full h-32 object-cover rounded-md mb-3"
       />
-      <h3 className="text-xl font-bold text-blue-900 dark:text-blue-300 mb-1">{doctor.name}</h3>
-      <p className="text-sm text-blue-700 dark:text-blue-400 font-medium mb-2">{doctor.specialty}</p>
-      <div className="flex flex-wrap justify-center gap-2 mt-2">
-        {doctor.slots.map((slot, index) => (
-          <button
-            key={index}
-            onClick={() => onBook(doctor.name, slot)}
-            className="text-sm bg-gradient-to-r from-blue-600 to-blue-400 text-white px-4 py-1.5 rounded-full shadow hover:from-blue-700 hover:to-blue-500 transition-colors duration-150"
-          >
-            {slot}
-          </button>
-        ))}
+      <h2 className="text-lg font-semibold text-gray-800">{doctor.name}</h2>
+      <p className="text-sm text-indigo-600 mb-2">{doctor.specialty}</p>
+
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">📅 Select Date</label>
+        <DatePicker
+          selected={selectedDate}
+          onChange={(date) => setSelectedDate(date)}
+          dateFormat="yyyy-MM-dd"
+          className="border px-3 py-2 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          placeholderText="Pick a date"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">⏰ Time Slot</label>
+        <div className="flex flex-wrap gap-2">
+          {doctor.slots.map((slot) => (
+            <button
+              key={slot}
+              onClick={() => {
+                if (selectedDate) {
+                  const formattedDate = selectedDate.toDateString();
+                  onBook(doctor.name, `${formattedDate} at ${slot}`);
+                } else {
+                  alert("Please select a date first.");
+                }
+              }}
+              className="px-3 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors"
+            >
+              {slot}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
